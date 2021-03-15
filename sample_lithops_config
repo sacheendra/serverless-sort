@@ -1,0 +1,22 @@
+# Change to .lithops_config after filling in the data
+lithops:
+    mode: serverless
+    storage: aws_s3
+    storage_bucket: lithops-cloudsort-test-1
+    log_level: INFO # One of: WARNING, INFO, DEBUG, ERROR, CRITICAL
+    data_cleaner: False
+
+serverless:
+    backend: aws_lambda
+    runtime_memory: 2048 # 1792MB provides 1 full vCPU
+
+aws:
+    access_key_id: AWS_ACCESS_KEY_ID
+    secret_access_key: AWS_SECRET_ACCESS_KEY
+
+aws_lambda:
+    execution_role: ROLE_IAN
+    region_name: eu-central-1
+
+aws_s3:
+    endpoint : https://s3.eu-central-1.amazonaws.com
