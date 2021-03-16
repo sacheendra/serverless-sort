@@ -3,7 +3,7 @@ from lithops import FunctionExecutor, Storage
 
 # Used inside lambda functions
 import io
-from shutil import copyfileobj
+from util import copyfileobj
 from lithops.storage.cloud_proxy import open
 import numpy as np
 
@@ -95,12 +95,12 @@ def sort_command(input_prefix, output_prefix, bytes_to_classify, max_parallelism
 		keys_list = storage_client.list_keys(bucket, input_prefix + '/')
 
 		radix_sort_futures = fexec.map(radix_sort_by_first_byte, keys_list,
-			extra_args=[bucket, input_prefix, bytes_to_classify], include_modules=None)
+			extra_args=[bucket, input_prefix, bytes_to_classify], include_modules=['util'])
 		results = fexec.get_result(fs=radix_sort_futures)
 		# print(results)
 
 		sort_category_futures = fexec.map(sort_category, intermediate_categories,
-			extra_args=[bucket, output_prefix], include_modules=None)
+			extra_args=[bucket, output_prefix], include_modules=['util'])
 		results = fexec.get_result(fs=sort_category_futures)
 		# print(results)
 

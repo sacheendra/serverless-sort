@@ -4,7 +4,7 @@ from lithops import FunctionExecutor, Storage
 # Used inside lambda functions
 import io
 import subprocess
-from shutil import copyfileobj
+from util import copyfileobj
 from lithops.storage.cloud_proxy import open
 
 record_size = 100
@@ -97,7 +97,7 @@ def generate_command(number, prefix, partitions, image):
 	with FunctionExecutor(runtime=image) as fexec:
 		bucket = fexec.config['lithops']['storage_bucket']
 		futures = fexec.map(generate_records, range(partitions),
-			extra_args=[number, prefix], include_modules=None)
+			extra_args=[number, prefix], include_modules=['util'])
 		fexec.get_result(fs=futures)
 
 	partition_size = record_size * number
@@ -107,12 +107,12 @@ def generate_command(number, prefix, partitions, image):
 	partition_list = storage_client.list_objects(bucket, prefix + '/')
 	assert len(partition_list) == partitions, f'partition_list: {len(partition_list)}; partitions: {partitions}'
 	for info in partition_list:
-		assert info['Size'] == partition_size 
+		assert info['Size'] == partition_size, f'partition size: {partition_size} \ninfo: {info}'
 
 	print('Done!')
 
 @cli.command('validate')
-@click.option('--prefix', type=str, default='10g-100p-output', help='Prefix used for sorted files')
+@click.option('--prefix', type=str, default='10g-100mb-output', help='Prefix used for sorted files')
 @click.option('--image', type=str, default='sacheendra/lithops-sort-1', help='Docker image to use')
 def validate_command(prefix, image):
 	storage_client = Storage()
@@ -122,7 +122,7 @@ def validate_command(prefix, image):
 		key_list = storage_client.list_keys(bucket, prefix + '/')
 
 		validate_records_futures = fexec.map(validate_records, key_list,
-			extra_args=[bucket, prefix], include_modules=None)
+			extra_args=[bucket, prefix], include_modules=['util'])
 		results = fexec.get_result(fs=validate_records_futures)
 		for index, r in enumerate(results):
 			if not r['success']:
@@ -131,7 +131,7 @@ def validate_command(prefix, image):
 				return
 
 		validate_summaries_futures = fexec.map(validate_summaries, [prefix+summary_postfix],
-			extra_args=[bucket], include_modules=None)
+			extra_args=[bucket], include_modules=['util'])
 		results = fexec.get_result(fs=validate_summaries_futures)
 		if results[0] == '':
 			print('Success!')
