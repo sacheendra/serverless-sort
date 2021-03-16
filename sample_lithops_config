@@ -5,6 +5,7 @@ lithops:
     storage_bucket: lithops-cloudsort-test-1
     log_level: INFO # One of: WARNING, INFO, DEBUG, ERROR, CRITICAL
     data_cleaner: False
+    execution_timeout: 895
 
 serverless:
     backend: aws_lambda

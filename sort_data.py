@@ -3,59 +3,53 @@ from lithops import FunctionExecutor, Storage
 
 # Used inside lambda functions
 import io
+import gc
 from util import copyfileobj
 from smart_open import open
 import numpy as np
 
+record_size = 100 # bytes
 max_num_categories = 256 # max value of a byte
+buffer_size_to_categorize = 500 * (10 ** 6) # Approx 0.5GB
 
 def radix_sort_by_first_byte(key_name, bucket_name, input_prefix, bytes_to_classify, storage):
 	partition_id = key_name[len(input_prefix)+1:]
 	available_num_categories = int(max_num_categories / bytes_to_classify)
+	category_files = [ open(f's3://{storage.bucket}/{input_prefix}-intermediate/{category_id}/{partition_id}', 'wb',
+				transport_params=dict(client=storage.get_client())) for category_id in range(available_num_categories) ]
 
-	partition_sink = io.BytesIO()
-	with open(f's3://{storage.bucket}/{key_name}', 'rb',
-		transport_params=dict(client=storage.get_client())) as source_file:
-		# Maybe change to using very large buffers to reduce python overhead
-		# or read all data into memory, classify and then start writing
-		# Classification of skewed data might lead to very large and empty buffers
-		# Sort first, then traverse the list
-		copyfileobj(source_file, partition_sink)
+	buf = memoryview(bytearray(buffer_size_to_categorize))
+	unique_buf = np.empty(buffer_size_to_categorize // record_size, dtype=np.bool_)
+	source_file = open(f's3://{storage.bucket}/{key_name}', 'rb',
+		transport_params=dict(client=storage.get_client()))
 
-	partition_buffer = partition_sink.getbuffer()
-	record_arr = np.frombuffer(partition_buffer, dtype=np.dtype([('first', 'u1'), ('rest', 'V99')]))
-	sorted_partition = np.sort(record_arr, order='first')
-	categorized_partition = sorted_partition['first'] // bytes_to_classify
+	while (bytes_read := source_file.readinto(buf)) != 0:
+		buffer_to_sort = buf[:bytes_read]
+		is_unique = unique_buf[:bytes_read // record_size]
 
-	is_unique = np.empty(categorized_partition.shape, dtype=np.bool_)
-	is_unique[:1] = True
-	is_unique[1:] = categorized_partition[1:] != categorized_partition[:-1]
-	category_start_indices = np.where(is_unique)[0]
-	# take into account that slicing is exclusive of last element
-	category_end_indices = np.append(category_start_indices[1:], len(categorized_partition))
+		record_arr = np.frombuffer(buffer_to_sort, dtype=np.dtype([('first', 'u1'), ('rest', 'V99')]))
+		sorted_buffer = np.sort(record_arr, order='first')
+		categorized_buffer = sorted_buffer['first'] // bytes_to_classify
+	
+		is_unique[:1] = True
+		is_unique[1:] = categorized_buffer[1:] != categorized_buffer[:-1]
+		category_start_indices = np.where(is_unique)[0]
+		# take into account that slicing is exclusive of last element
+		category_end_indices = np.append(category_start_indices[1:], len(categorized_buffer))
+	
+		for i in range(len(category_start_indices)):
+			start_index = category_start_indices[i]
+			end_index = category_end_indices[i]
+	
+			# Need to do this and can't directly use i
+			# Not all categories might be represented in this partition
+			category_id = categorized_buffer[start_index]
+			category_files[category_id].write(memoryview(sorted_buffer[start_index:end_index]))
+	
+	for category_file in category_files:
+		category_file.close()
 
-	for i in range(len(category_start_indices)):
-		start_index = category_start_indices[i]
-		end_index = category_end_indices[i]
-
-		# Need to do this and can't directly use i
-		# Not all categories might be represented in this partition
-		category_id = categorized_partition[start_index]
-		with open(f's3://{storage.bucket}/{input_prefix}-intermediate/{category_id}/{partition_id}', 'wb',
-			transport_params=dict(client=storage.get_client())) as category_file:
-
-			category_file.write(memoryview(sorted_partition[start_index:end_index]))
-
-	# while True:
-	# 	# each record is 100 byte
-	# 	# the read and write are buffered, so such small reads and writes should be fine
-	# 	record = source_file.read(100) 
-	# 	if not record:
-	# 		break
-
-	# 	# Classify using first byte
-	# 	category_id = int(record[0] / bytes_to_classify)
-	# 	available_categories[category_id].write(record)
+	source_file.close()
 
 	return True
 

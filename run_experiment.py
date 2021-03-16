@@ -16,7 +16,7 @@ def generate_data(num_partitions):
 
 @retry(tries=num_retries, backoff=5)
 def sort_data(max_parallelism, iteration=0):
-	os.environ['__LITHOPS_SESSION_ID'] = f'320g-1g-{max_parallelism}workers-sort-iter{iteration}'
+	os.environ['__LITHOPS_SESSION_ID'] = f'320g_1g_{max_parallelism}workers_sort_iter{iteration}'
 	sort_cmd = ['python', 'sort_data.py',
 		'--input-prefix', f'320g-1g-input',
 		'--output-prefix', f'320g-1g-output',
