@@ -15,12 +15,12 @@ def generate_records(partition_id, num_records, key_prefix):
 	with open(f'{key_prefix}/{partition_id}', 'wb') as dest_file:
 
 		cmd = ['./gensort', f'-b{partition_id * num_records}', str(num_records), '/dev/stdout']
-		p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-		with p.stdout as genoutput:
-			copyfileobj(genoutput, dest_file)
-		returncode = p.wait()
-		if returncode != 0:
-			raise Exception(f'Non-zero return code for gensort: {returncode}')
+		with subprocess.Popen(cmd, stdout=subprocess.PIPE) as p:
+			with p.stdout as genoutput:
+				copyfileobj(genoutput, dest_file)
+			returncode = p.wait()
+			if returncode != 0:
+				raise Exception(f'Non-zero return code for gensort: {returncode}')
 
 	return True
 
@@ -31,19 +31,19 @@ def validate_records(key_name, bucket, key_prefix):
 	with open(f'{key_name}', 'rb') as source_file:
 
 		cmd = ['./valsort', '-o', '/dev/stdout', '/dev/stdin'] # Keep the -q option in mind in case output pollutes summary
-		p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-		with p.stdout as valoutput, p.stderr as valerr:
-			with p.stdin as valinput: # Need to close input for valsort to finish
-				copyfileobj(source_file, valinput)
-			returncode = p.wait()
-			if returncode != 0:
-				stderr_output = valerr.read().decode('utf-8')
-			if returncode > 1:
-				raise Exception(f'Non-zero return code for valsort: {returncode}\n' + stderr_output)
+		with subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE) as p:
+			with p.stdout as valoutput, p.stderr as valerr:
+				with p.stdin as valinput: # Need to close input for valsort to finish
+					copyfileobj(source_file, valinput)
+				returncode = p.wait()
+				if returncode != 0:
+					stderr_output = valerr.read().decode('utf-8')
+				if returncode > 1:
+					raise Exception(f'Non-zero return code for valsort: {returncode}\n' + stderr_output)
 
-			partition_id = key_name[len(key_prefix)+1:]
-			with open(f'{key_prefix}{summary_postfix}/{partition_id}', 'wb') as summary_file:
-				copyfileobj(valoutput, summary_file)
+				partition_id = key_name[len(key_prefix)+1:]
+				with open(f'{key_prefix}{summary_postfix}/{partition_id}', 'wb') as summary_file:
+					copyfileobj(valoutput, summary_file)
 
 	if returncode == 0:
 		return {
@@ -70,16 +70,16 @@ def validate_summaries(key_prefix, bucket_name):
 			copyfileobj(source_file, summaries_buf)
 
 	cmd = ['./valsort', '-s', '/dev/stdin']
-	p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-	with p.stdin as valinput, p.stdout as valoutput, p.stderr as valerr:
-		with p.stdin as valinput: # Need to close input for valsort to finish
-			valinput.write(summaries_buf.getbuffer())
-		returncode = p.wait()
-		if returncode != 0:
-			raise Exception(f'Non-zero return code for valsort: {returncode}\n' + valerr.read().decode('utf-8'))
-		valoutput_str = valoutput.read().decode('utf-8')
+	with subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE) as p:
+		with p.stdin as valinput, p.stdout as valoutput, p.stderr as valerr:
+			with p.stdin as valinput: # Need to close input for valsort to finish
+				valinput.write(summaries_buf.getbuffer())
+			returncode = p.wait()
+			if returncode != 0:
+				raise Exception(f'Non-zero return code for valsort: {returncode}\n' + valerr.read().decode('utf-8'))
+			valoutput_str = valoutput.read().decode('utf-8')
 
-		return valoutput_str
+			return valoutput_str
 
 
 
