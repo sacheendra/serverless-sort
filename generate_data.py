@@ -4,7 +4,7 @@ from lithops import FunctionExecutor, Storage
 # Used inside lambda functions
 import io
 import subprocess
-from util import copyfileobj
+from shutil import copyfileobj
 from smart_open import open
 
 record_size = 100
@@ -12,7 +12,8 @@ summary_postfix = '-summaries'
 
 def generate_records(partition_id, num_records, key_prefix, storage):
 	
-	with open(f'{key_prefix}/{partition_id}', 'wb') as dest_file:
+	with open(f's3://{storage.bucket}/{key_prefix}/{partition_id}', 'wb',
+		transport_params=dict(client=storage.get_client())) as dest_file:
 
 		cmd = ['./gensort', f'-b{partition_id * num_records}', str(num_records), '/dev/stdout']
 		with subprocess.Popen(cmd, stdout=subprocess.PIPE) as p:
@@ -22,13 +23,14 @@ def generate_records(partition_id, num_records, key_prefix, storage):
 			if returncode != 0:
 				raise Exception(f'Non-zero return code for gensort: {returncode}')
 
-	return storage
+	return True
 
-def validate_records(key_name, bucket, key_prefix):
+def validate_records(key_name, bucket, key_prefix, storage):
 	returncode = 0
 	stderr_output = None
 
-	with open(f'{key_name}', 'rb') as source_file:
+	with open(f's3://{storage.bucket}/{key_name}', 'rb',
+		transport_params=dict(client=storage.get_client())) as source_file:
 
 		cmd = ['./valsort', '-o', '/dev/stdout', '/dev/stdin'] # Keep the -q option in mind in case output pollutes summary
 		with subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE) as p:
@@ -42,7 +44,9 @@ def validate_records(key_name, bucket, key_prefix):
 					raise Exception(f'Non-zero return code for valsort: {returncode}\n' + stderr_output)
 
 				partition_id = key_name[len(key_prefix)+1:]
-				with open(f'{key_prefix}{summary_postfix}/{partition_id}', 'wb') as summary_file:
+				with open(f's3://{storage.bucket}/{key_prefix}{summary_postfix}/{partition_id}', 'wb',
+					transport_params=dict(client=storage.get_client())) as summary_file:
+
 					copyfileobj(valoutput, summary_file)
 
 	if returncode == 0:
@@ -56,7 +60,7 @@ def validate_records(key_name, bucket, key_prefix):
 			'stderr': stderr_output
 		}
 
-def validate_summaries(key_prefix, bucket_name):
+def validate_summaries(key_prefix, bucket_name, storage):
 	storage_client = Storage()
 	key_list = storage_client.list_keys(bucket_name, key_prefix + '/')
 	sorted_key_list = sorted(key_list, key=lambda x: int(x.split('/')[-1]))
@@ -65,7 +69,8 @@ def validate_summaries(key_prefix, bucket_name):
 
 	# Get all summaries into one buffer
 	for key_name in sorted_key_list:
-		with open(f'{key_name}', 'rb') as source_file:
+		with open(f's3://{storage.bucket}/{key_name}', 'rb',
+			transport_params=dict(client=storage.get_client())) as source_file:
 
 			copyfileobj(source_file, summaries_buf)
 
@@ -98,7 +103,8 @@ def generate_command(number, prefix, partitions, image):
 		bucket = fexec.config['lithops']['storage_bucket']
 		futures = fexec.map(generate_records, range(partitions),
 			extra_args=[number, prefix], include_modules=['util'])
-		fexec.get_result(fs=futures)
+		results = fexec.get_result(fs=futures)
+		print(results)
 
 	partition_size = record_size * number
 

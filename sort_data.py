@@ -3,18 +3,19 @@ from lithops import FunctionExecutor, Storage
 
 # Used inside lambda functions
 import io
-from util import copyfileobj
+from shutil import copyfileobj
 from smart_open import open
 import numpy as np
 
 max_num_categories = 256 # max value of a byte
 
-def radix_sort_by_first_byte(key_name, bucket_name, input_prefix, bytes_to_classify):
+def radix_sort_by_first_byte(key_name, bucket_name, input_prefix, bytes_to_classify, storage):
 	partition_id = key_name[len(input_prefix)+1:]
 	available_num_categories = int(max_num_categories / bytes_to_classify)
 
 	partition_sink = io.BytesIO()
-	with open(key_name, 'rb') as source_file:
+	with open(f's3://{storage.bucket}/{key_name}', 'rb',
+		transport_params=dict(client=storage.get_client())) as source_file:
 		# Maybe change to using very large buffers to reduce python overhead
 		# or read all data into memory, classify and then start writing
 		# Classification of skewed data might lead to very large and empty buffers
@@ -40,7 +41,9 @@ def radix_sort_by_first_byte(key_name, bucket_name, input_prefix, bytes_to_class
 		# Need to do this and can't directly use i
 		# Not all categories might be represented in this partition
 		category_id = categorized_partition[start_index]
-		with open(f'{input_prefix}-intermediate/{category_id}/{partition_id}', 'wb') as category_file:
+		with open(f's3://{storage.bucket}/{input_prefix}-intermediate/{category_id}/{partition_id}', 'wb',
+			transport_params=dict(client=storage.get_client())) as category_file:
+
 			category_file.write(memoryview(sorted_partition[start_index:end_index]))
 
 	# while True:
@@ -57,21 +60,25 @@ def radix_sort_by_first_byte(key_name, bucket_name, input_prefix, bytes_to_class
 	return True
 
 
-def sort_category(category_prefix, bucket_name, output_prefix):
+def sort_category(category_prefix, bucket_name, output_prefix, storage):
 	storage_client = Storage()
 	category_id = category_prefix.split('/')[-1]
 	key_list = storage_client.list_keys(bucket_name, category_prefix + '/')
 
 	category_sink = io.BytesIO()
 	for key_name in key_list:
-		with open(key_name, 'rb') as source_file:
+		with open(f's3://{storage.bucket}/{key_name}', 'rb',
+			transport_params=dict(client=storage.get_client())) as source_file:
+
 			copyfileobj(source_file, category_sink)
 
 	category_buffer = category_sink.getbuffer()
 	record_arr = np.frombuffer(category_buffer, dtype=np.dtype([('key', 'V10'), ('value', 'V90')]))
 	sorted_category = np.sort(record_arr, order='key')
 
-	with open(f'{output_prefix}/{category_id}', 'wb') as sorted_file:
+	with open(f's3://{storage.bucket}/{output_prefix}/{category_id}', 'wb',
+		transport_params=dict(client=storage.get_client())) as sorted_file:
+	
 		sorted_file.write(memoryview(sorted_category))
 
 	return True
