@@ -89,7 +89,7 @@ def cli():
 
 @cli.command('generate')
 @click.option('--number', type=int, default=1000000, help='Number of records per partition; default is 10^6')
-@click.option('--prefix', type=str, default='10g-100p-input', help='Prefix to use for input data inside the bucket')
+@click.option('--prefix', type=str, default='10g-100mb-input', help='Prefix to use for input data inside the bucket')
 @click.option('--partitions', type=int, default=100, help='Number of input partitions')
 @click.option('--image', type=str, default='sacheendra/lithops-sort-1', help='Docker image to use')
 def generate_command(number, prefix, partitions, image):

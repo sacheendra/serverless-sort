@@ -77,11 +77,12 @@ def sort_category(category_prefix, bucket_name, output_prefix):
 	return True
 
 @click.command()
-@click.option('--input-prefix', type=str, default='10g-100p-input', help='Prefix used for input data inside the bucket')
-@click.option('--output-prefix', type=str, default='10g-100p-output', help='Prefix to use for output data inside the bucket')
+@click.option('--input-prefix', type=str, default='10g-100mb-input', help='Prefix used for input data inside the bucket')
+@click.option('--output-prefix', type=str, default='10g-100mb-output', help='Prefix to use for output data inside the bucket')
 @click.option('--bytes-to-classify', type=int, default=2, help='Number of bytes to use for classification in radix sort')
+@click.option('--max-parallelism', type=int, default=None, help='Maximum number of concurrent workers')
 @click.option('--image', type=str, default='sacheendra/lithops-sort-1', help='Docker image to use')
-def sort_command(input_prefix, output_prefix, bytes_to_classify, image):
+def sort_command(input_prefix, output_prefix, bytes_to_classify, max_parallelism, image):
 	available_num_categories = int(max_num_categories / bytes_to_classify)
 	intermediate_prefix = f'{input_prefix}-intermediate'
 	intermediate_categories = [f'{intermediate_prefix}/{i}' for i in range(available_num_categories)]
@@ -89,7 +90,7 @@ def sort_command(input_prefix, output_prefix, bytes_to_classify, image):
 	storage_client = Storage()
 	bucket = None
 
-	with FunctionExecutor(runtime=image) as fexec:
+	with FunctionExecutor(runtime=image, workers=max_parallelism) as fexec:
 		bucket = fexec.config['lithops']['storage_bucket']
 		keys_list = storage_client.list_keys(bucket, input_prefix + '/')
 
