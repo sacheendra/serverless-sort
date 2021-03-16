@@ -4,7 +4,7 @@ from lithops import FunctionExecutor, Storage
 # Used inside lambda functions
 import io
 import subprocess
-from shutil import copyfileobj
+from util import copyfileobj
 from smart_open import open
 
 record_size = 100

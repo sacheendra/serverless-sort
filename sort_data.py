@@ -3,7 +3,7 @@ from lithops import FunctionExecutor, Storage
 
 # Used inside lambda functions
 import io
-from shutil import copyfileobj
+from util import copyfileobj
 from smart_open import open
 import numpy as np
 
@@ -78,7 +78,7 @@ def sort_category(category_prefix, bucket_name, output_prefix, storage):
 
 	with open(f's3://{storage.bucket}/{output_prefix}/{category_id}', 'wb',
 		transport_params=dict(client=storage.get_client())) as sorted_file:
-	
+
 		sorted_file.write(memoryview(sorted_category))
 
 	return True
