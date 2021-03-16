@@ -104,7 +104,7 @@ def generate_command(number, prefix, partitions, image):
 		futures = fexec.map(generate_records, range(partitions),
 			extra_args=[number, prefix], include_modules=['util'])
 		results = fexec.get_result(fs=futures)
-		print(results)
+		# print(results)
 
 	partition_size = record_size * number
 
