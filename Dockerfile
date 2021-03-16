@@ -35,6 +35,11 @@ RUN pip install \
         ps-mem \
         tblib
 
+# Additional dependencies
+RUN pip install \
+    --target ${FUNCTION_DIR} \
+        smart_open
+
 
 FROM python:3.8-buster
 

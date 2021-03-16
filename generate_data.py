@@ -5,12 +5,12 @@ from lithops import FunctionExecutor, Storage
 import io
 import subprocess
 from util import copyfileobj
-from lithops.storage.cloud_proxy import open
+from smart_open import open
 
 record_size = 100
 summary_postfix = '-summaries'
 
-def generate_records(partition_id, num_records, key_prefix):
+def generate_records(partition_id, num_records, key_prefix, storage):
 	
 	with open(f'{key_prefix}/{partition_id}', 'wb') as dest_file:
 
@@ -22,7 +22,7 @@ def generate_records(partition_id, num_records, key_prefix):
 			if returncode != 0:
 				raise Exception(f'Non-zero return code for gensort: {returncode}')
 
-	return True
+	return storage
 
 def validate_records(key_name, bucket, key_prefix):
 	returncode = 0

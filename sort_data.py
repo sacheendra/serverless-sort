@@ -4,7 +4,7 @@ from lithops import FunctionExecutor, Storage
 # Used inside lambda functions
 import io
 from util import copyfileobj
-from lithops.storage.cloud_proxy import open
+from smart_open import open
 import numpy as np
 
 max_num_categories = 256 # max value of a byte
