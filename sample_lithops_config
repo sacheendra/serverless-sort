@@ -9,6 +9,7 @@ lithops:
 serverless:
     backend: aws_lambda
     runtime_memory: 2048 # 1792MB provides 1 full vCPU
+    runtime_timeout: 900 # 15 minutes, for those long low parallelism experiments
 
 aws:
     access_key_id: AWS_ACCESS_KEY_ID
