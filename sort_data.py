@@ -15,14 +15,14 @@ buffer_size_to_categorize = 500 * (10 ** 6) # Approx 0.5GB
 def radix_sort_by_first_byte(key_name, bucket_name, input_prefix, bytes_to_classify, storage):
 	partition_id = key_name[len(input_prefix)+1:]
 	available_num_categories = int(max_num_categories / bytes_to_classify)
-	category_files = [ open(f's3://{storage.bucket}/{input_prefix}-intermediate/{category_id}/{partition_id}', 'wb',
-				transport_params=dict(client=storage.get_client())) for category_id in range(available_num_categories) ]
+	category_files = [  for category_id in range(available_num_categories) ]
 
 	buf = memoryview(bytearray(buffer_size_to_categorize))
 	unique_buf = np.empty(buffer_size_to_categorize // record_size, dtype=np.bool_)
 	source_file = open(f's3://{storage.bucket}/{key_name}', 'rb',
 		transport_params=dict(client=storage.get_client()))
 
+	iteration_id = 0
 	while (bytes_read := source_file.readinto(buf)) != 0:
 		buffer_to_sort = buf[:bytes_read]
 		is_unique = unique_buf[:bytes_read // record_size]
@@ -44,10 +44,12 @@ def radix_sort_by_first_byte(key_name, bucket_name, input_prefix, bytes_to_class
 			# Need to do this and can't directly use i
 			# Not all categories might be represented in this partition
 			category_id = categorized_buffer[start_index]
-			category_files[category_id].write(memoryview(sorted_buffer[start_index:end_index]))
-	
-	for category_file in category_files:
-		category_file.close()
+			with open(f's3://{storage.bucket}/{input_prefix}-intermediate/{category_id}/{partition_id}/iter{iteration_id}', 'wb',
+				transport_params=dict(client=storage.get_client(), multipart=False)) as category_file:
+
+				category_file.write(memoryview(sorted_buffer[start_index:end_index]))
+
+		iteration_id = iteration_id + 1
 
 	source_file.close()
 
@@ -100,9 +102,9 @@ def sort_command(input_prefix, output_prefix, bytes_to_classify, max_parallelism
 		results = fexec.get_result(fs=radix_sort_futures)
 		# print(results)
 
-		sort_category_futures = fexec.map(sort_category, intermediate_categories,
-			extra_args=[bucket, output_prefix], include_modules=['util'])
-		results = fexec.get_result(fs=sort_category_futures)
+		# sort_category_futures = fexec.map(sort_category, intermediate_categories,
+		# 	extra_args=[bucket, output_prefix], include_modules=['util'])
+		# results = fexec.get_result(fs=sort_category_futures)
 		# print(results)
 
 	# Check if size of output matches size of input
