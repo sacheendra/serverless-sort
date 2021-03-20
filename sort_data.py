@@ -85,15 +85,14 @@ def radix_sort_by_byte(keys_list, prefix, category_stack, values_per_category, s
 		with open(f's3://{storage.bucket}/{key_name}', 'rb',
 			transport_params=dict(client=storage.get_client())) as source_file:
 
-			while (bytes_read := source_file.readinto(data_buf)) != 0:
+			# Store data into leftover buffer space
+			while (bytes_read := source_file.readinto(data_buf[buffer_start:])) != 0:
 				buffer_start = buffer_start + bytes_read
+				# Sort buffer when it is full
 				if buffer_start == buffer_size_to_categorize:
 					sort_buffer(data_buf)
 					buffer_start = 0
 					# Read same file again
-				else:
-					# Keep filling up buffer with data from other files
-					break
 
 	# Sort any data leftover in buffer
 	# We end at buffer_start because that is the start of the next write
